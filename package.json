@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "csv-parse": "^5.5.5",
+    "dotenv": "^16.4.5",
+    "puppeteer": "^22.6.5",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "tslib": "^2.6.2"
+  }
+}
