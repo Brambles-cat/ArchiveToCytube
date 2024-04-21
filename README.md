@@ -14,6 +14,7 @@ node index.js
 
 ## Known Issues:
 1. Some video links (mostly with pony.tube) might redirect to a different url for the same video and cause this to try adding it when it's already present in the playlist
+2. Currently it can't tell when it's been disconnected because of a duplicate login and it'll keep trying to add videos without any errors
 
 ## ToDo:
 1. I'm pretty sure now that Cytube determines duplicate videos by name rather than by link, so checking for that over links should fix the issue
