@@ -1,4 +1,4 @@
-# Pony Archive to Cytube Playlist
+# T10 Pony Archive to Cytube Playlist
 
 Written in js because:
 1. Cloudflare on the site blocks connection attempts from the needed web sockets that I'd originally written in python
