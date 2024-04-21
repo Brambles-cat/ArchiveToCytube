@@ -15,10 +15,12 @@ node index.js
 ## Known Issues:
 1. Some video links (mostly with pony.tube) might redirect to a different url for the same video and cause this to try adding it when it's already present in the playlist
 2. Currently it can't tell when it's been disconnected because of a duplicate login and it'll keep trying to add videos without any errors being thrown
+3. Currently includes blacklisted videos when going through the archive
 
 ## ToDo:
-1. I'm pretty sure now that Cytube determines duplicate videos by name rather than by link, so checking for that over links should fix the issue
-2. Use command line arguments so that commands like the ones below can be run
+1. I'm pretty sure now that Cytube determines duplicate videos by name rather than by link, so checking for titles over links should fix the issue
+2. Add a check to skip over blacklisted videos
+3. Use command line arguments so that commands like the ones below can be run
 ```bash
 # Run with headless mode off so you can see everything that the script might be doing right/wrong
 node index.js -show
