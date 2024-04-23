@@ -18,9 +18,8 @@ node index.js
 3. Currently includes videos with blacklisted creators when going through the archive
 
 ## ToDo:
-1. I'm pretty sure now that Cytube determines duplicate videos by name rather than by link, so checking for titles over links should fix the issue
-2. Add a check to skip over videos with blacklisted creators
-3. Use command line arguments so that commands like the ones below can be run
+1. Add a check to skip over videos with blacklisted creators
+2. Use command line arguments so that commands like the ones below can be run
 ```bash
 # Run with headless mode off so you can see everything that the script might be doing right/wrong
 node index.js -show
