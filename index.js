@@ -1,83 +1,76 @@
-const puppeteer = require('puppeteer-extra')
-const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+const { update_playlist } = require('./cytube_auto.js')
+const { getInput, logErr, log } = require('./utils.js')
+require('dotenv').config()
 
-const { csv_map: index, vid_identifier, get_archive_csv, log, logErr, env, delay } = require('./utils.js')
 
-puppeteer.use(StealthPlugin())
+function get_flags() {
+  let args = process.argv.slice(2)
+  if (args.length == 0) args = process.env.DEFAULT_FLAGS.trimEnd().split(' ')
+  if (args[0] === '') return {}
+  let flags = {}
 
-puppeteer.launch({ headless: true}).then(async browser => {
-  const page = await browser.newPage()
+  const boolean = ['-show', '-checkblacklisted']
+  const delay = ['-queuedelay', '-errdelay']
 
-  await page.setCookie(env['cookie'])
-  await page.goto(env['channel'])
-  
-  const csvData = await get_archive_csv('https://docs.google.com/spreadsheets/d/1rEofPkliKppvttd8pEX8H6DtSljlfmQLdFR-SlyyX7E/export?format=csv')
+  // smollest bit of redundancy fixable with stacks, but inconsequential
+  args.forEach(arg => {
 
-  // since a browser is being used, a delay is needeed so all the necessary elements have time to load
-  await delay(2500)
-
-  // This is the + button which is needed to reveal the playlist adding video options
-  await page.click('#showmediaurl')
-
-  // this is to uncheck the 'add as temporary' box
-  await page.waitForSelector("#addfromurl .checkbox .add-temp").then(button => button.click());
-
-  // return a 2d array of all video identifiers currently in the playlist
-  let playlistSnapshot = await page.evaluate(() => {
-    const elements = Array.from(document.getElementsByClassName('qe_title'));
-    elements.shift()
-    return elements.map(e => {
-      // can't use vid_identifier() here since this runs in the page context
-      str = e.href.split('/')
-      if (!str.at(-1)) {
-        return str.at(-2) + "/"
+    for (var b_flag of boolean) {
+      if (arg === b_flag) {
+        flags[b_flag] = true
+        return
       }
-      return str.at(-1)
-    });
+    }
+
+    for (var d_flag of delay) {
+      if (!arg.startsWith(d_flag)) continue
+      const val = parseInt(arg.slice(d_flag.length))
+      if (isNaN(val))
+        logErr(`${d_flag} must have a value, e.g. ${d_flag}10`)
+
+      flags[d_flag] = val
+      return
+    }
+
+    logErr(`${arg} is not a valid flag`)
+    
   })
 
-  // for the sake of O(n^2) -> O((n^2)/2 + n)
-  // playlistSnapshot = new LinkedList(playlistSnapshot)
-  // or actually might be O(M(n^2)/2 + n) where M > 2 but idk so nvm unless debugging
-  
-  let csv_row = 1, add_vid_attempts = 0, alt_links_used = 0
+  for (var d_flag of delay) 
+    if (flags[d_flag] === undefined) flags[d_flag] = 1000
 
-  // for each video in the archive, try adding it to
-  // the cytube playlist if it isn't already present
-  for (var videoData of csvData) {
-    ++csv_row
-    if (playlistSnapshot.includes(vid_identifier(videoData[index.LINK]))) {
-      log(csv_row + ': present')
-      continue
-    };
+  return flags
+}
 
-    if (videoData[index.STATE]) {
-      if (videoData[index.FOUND] !== "found") {
-        logErr(csv_row + ': no useable alt link - Title: ' + videoData[index.TITLE])
-        await delay(1000)
-        continue
-      }
-      if (playlistSnapshot.includes(vid_identifier(videoData[index.ALT_LINK]))) {
-        log(csv_row + ": alt present")
-        continue
-      }
-
-      log("using alt link - alts used: " + ++alt_links_used)
-      await page.type('#mediaurl', videoData[index.ALT_LINK])
-
-    } else { await page.type('#mediaurl', videoData[index.LINK]); }
-
-    await page.click('#queue_end')
-
-    log(csv_row + ": not preset - Title: " + videoData[index.TITLE] + "\nVideo Adding Attempts: " + ++add_vid_attempts)
-    // Cytube has a limit on how fast videos can be added so a
-    // delay was needed whether puppeteer was used or not
-    // I found that 600-1000 ms was enough of a delay to not face this issue
-    // but i'm using 1000 just to be safe
-    await delay(1000)
-
+async function main() {
+  const flags = get_flags()
+  if (!process.env.CHANNEL) {
+    logErr('No Channel specificed in .env')
+    return
   }
 
-  await browser.close() // Breakpoint on this line if using linkedlist to see leftover videos
-  log('done')
-})
+  const channel_url = `https://cytu.be/r/${process.env.CHANNEL}`
+  log('')
+
+  // Effectively the same as a Token or API key for cytube required for adding videos to the playlist
+  // Can be found by visiting cytube while logged in
+  // Inspect page -> Application -> Cookies -> Value of row auth
+  let cookie = await getInput('Authentication Cookie: ', true)
+
+  cookie =  {
+    'name': 'auth',
+    'value': cookie,
+    'domain': '.cytu.be'
+  }
+
+  update_playlist(
+    cookie            = cookie,
+    headless          = !flags['-show'],
+    err_delay         = flags['-errdelay'],
+    queue_delay       = flags['-queuedelay'],
+    url               = channel_url,
+    check_blacklisted = flags['-checkblacklisted']
+  )
+}
+
+main()

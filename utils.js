@@ -1,25 +1,16 @@
 const https = require('https')
 const { parse } = require('csv-parse');
-require('dotenv').config()
+const readline = require('readline-sync')
 
 // just to access csv row values by name rather than by number
 const csv_map = Object.freeze({
     LINK: 3,
     TITLE: 4,
+    CHANNEL: 5,
     STATE: 7,
     ALT_LINK: 8,
     FOUND: 9
 })
-
-const env = {
-    // used as a login token or api key or whatever it is
-    "cookie": {
-        'name': 'auth',
-        'value': process.env.AUTH_COOKIE,
-        'domain': '.cytu.be'
-    },
-    "channel": 'https://cytu.be/r/' + process.env.CHANNEL
-}
 
 // returns a 2d array representing the csv file (without including the first row)
 function parse_csv(csv_text) {
@@ -86,71 +77,33 @@ function vid_identifier(str) {
     return str.at(-1)
 }
 
+function blacklist_check(video_data) {
+    return video_data[csv_map.CHANNEL].startsWith('[BLACKLISTED]')
+}
+
 // This is for the coolooorrrs
 function log(msg) { console.log('\u001b[1;33m' + msg) }
 
 function logErr(msg) { console.log('\u001b[1;31m' + msg) }
 
 // verbatim, essentially sleep() function
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
-class Node {
-    value
-    next
-    constructor(value) { this.value = value }
+const delay = ms => {
+    return new Promise(res => setTimeout(res, ms))
 }
 
-class LinkedList {
-    head
-    tail
-    size = 0
-    current
-
-    constructor(array) {
-        for (var v of array) {
-            this.push(v)
-        }
-    }
-
-    includes(key) {
-        let temp = this.head
-        if (!temp) return false
-
-        if(temp.value == key) {
-            this.head = temp.next
-            --this.size
-            return true
-        }
-
-        while (temp.next) {
-           if (temp.next.value == key) {
-            temp.next = temp.next.next
-            --this.size
-            return true
-           }
-           temp = temp.next
-        }
-        return false
-    }
-
-    push(value) {
-        if (this.head) {
-            let temp = new Node(value)
-            this.tail.next = temp
-            this.tail = temp
-        } else {
-            this.head = new Node(value)
-            this.tail = this.head
-        }
-        ++this.size
-    }
-
-    shift() {
-        if (this.head) {
-            this.head = this.head.next
-            --this.size
-        }
-    }
+async function getInput(prompt, is_sensitive) {
+    return readline.question(prompt, {
+        hideEchoBack: is_sensitive
+    })
 }
 
-module.exports = { csv_map, get_archive_csv, log, logErr, env, delay, vid_identifier }
+module.exports = {
+    getInput,
+    csv_map,
+    get_archive_csv,
+    vid_identifier,
+    log,
+    logErr,
+    delay,
+    blacklist_check
+}
