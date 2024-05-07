@@ -134,7 +134,7 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
             });
         });
 
-        log("\nSummary Report:")
+        log("\nResults Summary:")
         log(`Tried adding ${add_vid_attempts} videos to Cytube\n`)
 
         for (let alert of alerts) {
