@@ -83,7 +83,7 @@ async function vid_identifier(url) {
 }
 
 function blacklist_check(video_data) {
-    return video_data[csv_map.CHANNEL].startsWith('[BLACKLISTED]')
+    return video_data[csv_map.CHANNEL].startsWith('[BLACKLIST]')
 }
 
 // This is for the coolooorrrs
