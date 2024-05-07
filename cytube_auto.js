@@ -46,7 +46,7 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
             ++csv_row
             blacklisted = check_blacklisted && blacklist_check(videoData)
 
-            if (playlistSnapshot.includes(vid_identifier(videoData[index.LINK]))) {
+            if (playlistSnapshot.includes(await vid_identifier(videoData[index.LINK]))) {
                 if (blacklisted) logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
                 else log(`${csv_row}: present`)
                 continue
@@ -64,7 +64,7 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
                     continue
                 }
 
-                if (playlistSnapshot.includes(vid_identifier(videoData[index.ALT_LINK]))) {
+                if (playlistSnapshot.includes(await vid_identifier(videoData[index.ALT_LINK]))) {
                     if (blacklisted) {
                         logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
                         await delay(err_delay)

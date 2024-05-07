@@ -1,6 +1,7 @@
 const https = require('https')
 const { parse } = require('csv-parse');
 const readline = require('readline-sync')
+const cheerio = require('cheerio')
 
 // just to access csv row values by name rather than by number
 const csv_map = Object.freeze({
@@ -68,13 +69,17 @@ function get_archive_csv(url, maxRedirects = 3) {
 // returns the part of the link that identifies the video
 // luckily the value differes between youtube, ponytube, and
 // bilibili as far as I can tell
-function vid_identifier(str) {
-    str = str.split('/')
-    if (!str.at(-1)) {
-        return str.at(-2) + "/"
+async function vid_identifier(url) {
+    if (url.startsWith("https://pony.tube")) {
+        url = await get_ponytube_id(url)
     }
-    
-    return str.at(-1)
+
+    url = url.split('/')
+    if (!url.at(-1)) {
+        return url.at(-2) + "/"
+    }
+
+    return url.at(-1)
 }
 
 function blacklist_check(video_data) {
@@ -94,6 +99,28 @@ const delay = ms => {
 async function getInput(prompt, is_sensitive) {
     return readline.question(prompt, {
         hideEchoBack: is_sensitive
+    })
+}
+
+function get_ponytube_id(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, (response) => {
+            var data = "";
+            response.on('data', (chunk) => {
+                data += chunk.toString();
+            })
+
+            response.on('end', () => {
+                const $ = cheerio.load(data)
+                const metaTag = $('meta[property="og:url"]')
+                const content = metaTag.attr('content')
+                resolve(content)
+            })
+
+            response.on('err', (error) => {
+                reject(error);
+            })
+        });
     })
 }
 
