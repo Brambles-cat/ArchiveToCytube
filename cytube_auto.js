@@ -1,7 +1,7 @@
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 
-const { csv_map: index, blacklist_check, vid_identifier, get_archive_csv, log, logErr, env, delay } = require('./utils.js')
+const { csv_map: index, blacklist_check, vid_identifier, get_archive_csv, log, logErr, env, delay, getInput } = require('./utils.js')
 
 puppeteer.use(StealthPlugin())
 
@@ -37,24 +37,31 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
             });
         })
         
-        let blacklisted
+        let is_blacklisted
         let csv_row = 1, add_vid_attempts = 0, alt_links_used = 0
+        let alternate = false
+        const blacklist_included = []
 
         // for each video in the archive, try adding it to
         // the cytube playlist if it isn't already present
         for (var videoData of archive_data) {
             ++csv_row
-            blacklisted = check_blacklisted && blacklist_check(videoData)
+            is_blacklisted = check_blacklisted && blacklist_check(videoData)
 
             if (playlistSnapshot.includes(await vid_identifier(videoData[index.LINK]))) {
-                if (blacklisted) logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
+                if (is_blacklisted) {
+                    logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
+                    await delay(err_delay)
+                    blacklist_included.push(`${videoData[index.TITLE]}  -  ${videoData[index.LINK]}`)
+                }
                 else log(`${csv_row}: present`)
                 continue
             }
 
+            // video having a non null state means that the first link shouldn't work
             if (videoData[index.STATE]) {
                 if (videoData[index.FOUND] !== "found") {
-                    if (blacklisted) log(`${csv_row}: skipping blacklisted video`)
+                    if (is_blacklisted) log(`${csv_row}: skipping blacklisted video`)
 
                     else {
                         logErr(csv_row + ': no useable alt link - Title: ' + videoData[index.TITLE])
@@ -65,25 +72,26 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
                 }
 
                 if (playlistSnapshot.includes(await vid_identifier(videoData[index.ALT_LINK]))) {
-                    if (blacklisted) {
+                    if (is_blacklisted) {
                         logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
                         await delay(err_delay)
+                        blacklist_included.push(`${videoData[index.TITLE]}  -  ${videoData[index.ALT_LINK]}`)
                     }
                     else
                         log(csv_row + ": alt present")
                     continue
                 }
 
-                if (blacklisted) {
+                if (is_blacklisted) {
                     log(`${csv_row}: skipping blacklisted video`)
                     continue
                 }
-                
-                log("using alt link - alts used: " + ++alt_links_used)
+
+                alternate = true
                 await page.type('#mediaurl', videoData[index.ALT_LINK])
 
             } else {
-                if (blacklisted) {
+                if (is_blacklisted) {
                     log(`${csv_row}: skipping blacklisted video`)
                     continue
                 }
@@ -92,7 +100,13 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
 
             await page.click('#queue_end')
 
-            log(csv_row + ": not preset - Title: " + videoData[index.TITLE] + "\nVideo Adding Attempts: " + ++add_vid_attempts)
+            log(
+                `${csv_row}: not present - Title: ${videoData[index.TITLE]}\n${alternate ? 'adding using alt link...' : 'adding...'}\n`
+            )
+
+            ++add_vid_attempts
+            alternate = false;
+
             // Cytube has a limit on how fast videos can be added so a
             // delay was needed whether puppeteer was used or not
             // I found that 600-1000 ms was enough of a delay to not face this issue
@@ -101,8 +115,45 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
 
         }
 
-        await browser.close()
         log('done')
+        
+        // in case a new err pops up or smt
+        await delay(2000)
+
+        const alerts = await page.$$eval('.alert.alert-danger', alerts => {
+            return alerts.map(alert => {
+                const links = []
+                links.push(alert.childNodes[3].nodeValue.split('.')[0])
+
+                const elements = alert.querySelectorAll('a')
+                for (let e of elements)
+                    if (!e.href.includes('https://github'))
+                        links.push(e.href)
+
+                return links;
+            });
+        });
+
+        log("\nSummary Report:")
+        log(`Tried adding ${add_vid_attempts} videos to Cytube\n`)
+
+        for (let alert of alerts) {
+            log(alert[0])
+            for (let i = 1; i < alert.length; ++i)
+                logErr(alert[i])
+            log('')
+        }
+
+        if (blacklist_included) {
+            log("Blacklisted videos found in Cytube playlist")
+            for (let video_identifiers of blacklist_included)
+                logErr(video_identifiers)
+            log('')
+        }
+
+
+        if (!headless) await getInput("Press Enter to quit", false)
+        await browser.close()
     })
 }
 
