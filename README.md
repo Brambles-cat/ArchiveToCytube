@@ -13,20 +13,11 @@ node index.js
 ```
 
 ## Known Issues:
-1. Some video links (mostly with pony.tube) might redirect to a different url for the same video and cause this to try adding it when it's already present in the playlist
-2. Currently it can't tell when it's been disconnected because of a duplicate login and it'll keep trying to add videos without any errors being thrown
-3. Currently includes videos with blacklisted creators when going through the archive
+1. Currently it can't tell when it's been disconnected because of a duplicate login and it'll keep trying to add videos without any errors being thrown
+2. Currently includes videos with blacklisted creators when going through the archive
+3. Only indication of age-restricted videos placed in the notes section of the csv, leading to the program trying and failing to add them on Cytube
 
 ## ToDo:
 1. Add a check to skip over videos with blacklisted creators
-2. Use command line arguments so that commands like the ones below can be run
-```bash
-# Run with headless mode off so you can see everything that the script might be doing right/wrong
-node index.js -show
-
-# Add videos at a different delay in case you want it to process faster or if the default one is
-# for whatever reason too fast and causing errors
-node index.js -d[int]
-
-# + any other ones that might be useful
-```
+2. Check notes for each archive entry for `age restriction` and skip over them if present
+3. Summary report after reaching the end of the archive to list any problems or things that may need updating
