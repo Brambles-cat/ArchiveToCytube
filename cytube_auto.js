@@ -42,6 +42,19 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
         let alternate = false
         const blacklist_included = []
 
+        function skip_check(video_data) {
+            if (is_blacklisted) {
+                log(`${csv_row}: skipping blacklisted video`)
+                return true
+            }
+
+             if (videoData[index.NOTES].includes("age restriction")) {
+                log(`${csv_row}: skipping age restricted video`)
+                return true
+            }
+            return false
+        }
+
         // for each video in the archive, try adding it to
         // the cytube playlist if it isn't already present
         for (var videoData of archive_data) {
@@ -61,13 +74,10 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
             // video having a non null state means that the first link shouldn't work
             if (videoData[index.STATE]) {
                 if (videoData[index.FOUND] !== "found") {
-                    if (is_blacklisted) log(`${csv_row}: skipping blacklisted video`)
+                    if (skip_check) continue
 
-                    else {
-                        logErr(csv_row + ': no useable alt link - Title: ' + videoData[index.TITLE])
-                        await delay(err_delay)
-                    }
-
+                    logErr(csv_row + ': no useable alt link - Title: ' + videoData[index.TITLE])
+                    await delay(err_delay)
                     continue
                 }
 
@@ -82,27 +92,19 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
                     continue
                 }
 
-                if (is_blacklisted) {
-                    log(`${csv_row}: skipping blacklisted video`)
-                    continue
-                }
+                if (skip_check(videoData)) continue
 
                 alternate = true
                 await page.type('#mediaurl', videoData[index.ALT_LINK])
 
             } else {
-                if (is_blacklisted) {
-                    log(`${csv_row}: skipping blacklisted video`)
-                    continue
-                }
+                if (skip_check) continue
                 await page.type('#mediaurl', videoData[index.LINK]);
             }
 
             await page.click('#queue_end')
 
-            log(
-                `${csv_row}: not present - Title: ${videoData[index.TITLE]}\n${alternate ? 'adding using alt link...' : 'adding...'}\n`
-            )
+            log(`${csv_row}: not present - Title: ${videoData[index.TITLE]}\n${alternate ? 'adding using alt link...' : 'adding...'}\n`)
 
             ++add_vid_attempts
             alternate = false;
@@ -112,7 +114,6 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
             // I found that 600-1000 ms was enough of a delay to not face this issue
             // but the default value is 1000 just to be safe
             await delay(queue_delay + (!headless * 1000))
-
         }
 
         log('done')
