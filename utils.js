@@ -10,7 +10,8 @@ const csv_map = Object.freeze({
     CHANNEL: 5,
     STATE: 7,
     ALT_LINK: 8,
-    FOUND: 9
+    FOUND: 9,
+    NOTES: 10
 })
 
 // returns a 2d array representing the csv file (without including the first row)
