@@ -88,9 +88,15 @@ function blacklist_check(video_data) {
 }
 
 // This is for the coolooorrrs
-function log(msg) { console.log('\u001b[1;33m' + msg) }
+function log(msg = '') { console.log('\u001b[1;33m' + msg) }
 
-function logErr(msg) { console.log('\u001b[1;31m' + msg) }
+let err_delay
+function setErrDelay(ms) { err_delay = ms }
+
+async function logErr(msg, should_wait = true) {
+    console.log('\u001b[1;31m' + msg)
+    if (should_wait) await delay(err_delay)
+}
 
 // verbatim, essentially sleep() function
 const delay = ms => {
@@ -133,5 +139,6 @@ module.exports = {
     log,
     logErr,
     delay,
-    blacklist_check
+    blacklist_check,
+    setErrDelay
 }

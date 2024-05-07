@@ -1,5 +1,5 @@
 const { update_playlist } = require('./cytube_auto.js')
-const { getInput, logErr, log } = require('./utils.js')
+const { getInput, logErr, log, setErrDelay } = require('./utils.js')
 require('dotenv').config()
 
 
@@ -26,13 +26,13 @@ function get_flags() {
       if (!arg.startsWith(d_flag)) continue
       const val = parseInt(arg.slice(d_flag.length))
       if (isNaN(val))
-        logErr(`${d_flag} must have a value, e.g. ${d_flag}10`)
+        logErr(`${d_flag} must have a value, e.g. ${d_flag}1000`)
 
       flags[d_flag] = val
       return
     }
 
-    logErr(`${arg} is not a valid flag`)
+    logErr(`${arg} is not a valid flag`, false)
     
   })
 
@@ -45,12 +45,12 @@ function get_flags() {
 async function main() {
   const flags = get_flags()
   if (!process.env.CHANNEL) {
-    logErr('No Channel specificed in .env')
+    logErr('No Channel specificed in .env', false)
     return
   }
 
   const channel_url = `https://cytu.be/r/${process.env.CHANNEL}`
-  log('')
+  log()
 
   // Effectively the same as a Token or API key for cytube required for adding videos to the playlist
   // Can be found by visiting cytube while logged in
@@ -63,11 +63,13 @@ async function main() {
     'domain': '.cytu.be'
   }
 
+  setErrDelay(flags['-errdelay'])
+
   update_playlist(
     cookie            = cookie,
     headless          = !flags['-show'],
-    err_delay         = flags['-errdelay'],
     queue_delay       = flags['-queuedelay'],
+
     url               = channel_url,
     check_blacklisted = flags['-checkblacklisted']
   )

@@ -1,11 +1,11 @@
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 
-const { csv_map: index, blacklist_check, vid_identifier, get_archive_csv, log, logErr, env, delay, getInput } = require('./utils.js')
+const { csv_map: index, blacklist_check, vid_identifier, get_archive_csv, log, logErr, delay, getInput } = require('./utils.js')
 
 puppeteer.use(StealthPlugin())
 
-function update_playlist(cookie, headless, err_delay, queue_delay, url, check_blacklisted) {
+function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) {
     puppeteer.launch({ headless: headless}).then(async browser => {
         const page = await browser.newPage()
 
@@ -63,8 +63,7 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
 
             if (playlistSnapshot.includes(await vid_identifier(videoData[index.LINK]))) {
                 if (is_blacklisted) {
-                    logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
-                    await delay(err_delay)
+                    await logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
                     blacklist_included.push(`${videoData[index.TITLE]}  -  ${videoData[index.LINK]}`)
                 }
                 else log(`${csv_row}: present`)
@@ -76,15 +75,13 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
                 if (videoData[index.FOUND] !== "found") {
                     if (skip_check) continue
 
-                    logErr(csv_row + ': no useable alt link - Title: ' + videoData[index.TITLE])
-                    await delay(err_delay)
+                    await logErr(csv_row + ': no useable alt link - Title: ' + videoData[index.TITLE])
                     continue
                 }
 
                 if (playlistSnapshot.includes(await vid_identifier(videoData[index.ALT_LINK]))) {
                     if (is_blacklisted) {
-                        logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
-                        await delay(err_delay)
+                        await logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
                         blacklist_included.push(`${videoData[index.TITLE]}  -  ${videoData[index.ALT_LINK]}`)
                     }
                     else
@@ -141,15 +138,15 @@ function update_playlist(cookie, headless, err_delay, queue_delay, url, check_bl
         for (let alert of alerts) {
             log(alert[0])
             for (let i = 1; i < alert.length; ++i)
-                logErr(alert[i])
-            log('')
+                logErr(alert[i], false)
+            log()
         }
 
         if (blacklist_included) {
             log("Blacklisted videos found in Cytube playlist")
             for (let video_identifiers of blacklist_included)
-                logErr(video_identifiers)
-            log('')
+                logErr(video_identifiers, false)
+            log()
         }
 
 
