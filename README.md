@@ -14,9 +14,7 @@ node index.js
 
 ## Known Issues:
 1. Currently it can't tell when it's been disconnected because of a duplicate login and it'll keep trying to add videos without any errors being thrown
-2. Tries adding videos labeled as age restricted, which aren't accepted by Cytube
 
 ## ToDo:
-1. Check notes for each archive entry for `age restriction` and skip over them if present
-2. Error handling for invalid auth cookie input
-3. Right now the logging is disgusting. Need to clean that up later
+1. Error handling for invalid auth cookie input
+2. Handle Cytube disconnections
