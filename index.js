@@ -6,7 +6,7 @@ require('dotenv').config()
 function get_flags() {
   let args = process.argv.slice(2)
   if (args.length == 0) args = process.env.DEFAULT_FLAGS.trimEnd().split(' ')
-  if (args[0] === '') return {}
+  if (args[0] === '') args = []
   let flags = {}
 
   const boolean = ['-show', '-checkblacklisted']
