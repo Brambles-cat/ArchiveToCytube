@@ -13,7 +13,7 @@ node index.js
 ```
 
 ## Known Issues:
-1. Currently it can't tell when it's been disconnected because of a duplicate login and it'll keep trying to add videos without any errors being thrown
+1. Accepts invalid auth cookie input meaning that any video it will add will be added as temporary
 
 ## ToDo:
 1. Error handling for invalid auth cookie input
