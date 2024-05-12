@@ -17,4 +17,3 @@ node index.js
 
 ## ToDo:
 1. Error handling for invalid auth cookie input
-2. Handle Cytube disconnections
