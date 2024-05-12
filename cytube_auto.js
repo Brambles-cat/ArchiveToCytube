@@ -38,7 +38,7 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
         })
         
         let is_blacklisted
-        let csv_row = 1, add_vid_attempts = 0, alt_links_used = 0
+        let csv_row = 1, add_vid_attempts = 0
         let alternate = false
         const blacklist_included = []
 
@@ -84,8 +84,7 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
                         await logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
                         blacklist_included.push(`${videoData[index.TITLE]}  -  ${videoData[index.ALT_LINK]}`)
                     }
-                    else
-                        log(csv_row + ": alt present")
+                    else log(`${csv_row}: alt present`)
                     continue
                 }
 
@@ -99,18 +98,24 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
                 await page.type('#mediaurl', videoData[index.LINK]);
             }
 
-            await page.click('#queue_end')
-
-            log(`${csv_row}: not present - Title: ${videoData[index.TITLE]}\n${alternate ? 'adding using alt link...' : 'adding...'}\n`)
-
-            ++add_vid_attempts
-            alternate = false;
+            if (await page.$('.server-msg-disconnect')) {
+                logErr('Disconnected from server because of duplicate login')
+                return
+            }
 
             // Cytube has a limit on how fast videos can be added so a
             // delay was needed whether puppeteer was used or not
             // I found that 600-1000 ms was enough of a delay to not face this issue
             // but the default value is 1000 just to be safe
+            await page.click('#queue_end')
             await delay(queue_delay + (!headless * 1000))
+
+
+
+            log(`${csv_row}: not present - Title: ${videoData[index.TITLE]}\n${alternate ? 'adding using alt link...' : 'adding...'}\n`)
+
+            ++add_vid_attempts
+            alternate = false;
         }
 
         log('done')
@@ -125,7 +130,7 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
 
                 const elements = alert.querySelectorAll('a')
                 for (let e of elements)
-                    if (!e.href.includes('https://github'))
+                    if (!e.href.includes('https://git'))
                         links.push(e.href)
 
                 return links;
@@ -142,15 +147,14 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
             log()
         }
 
-        if (blacklist_included) {
+        if (blacklist_included.length) {
             log("Blacklisted videos found in Cytube playlist")
             for (let video_identifiers of blacklist_included)
                 logErr(video_identifiers, false)
             log()
         }
 
-
-        if (!headless) await getInput("Press Enter to quit", false)
+        if (!headless) await getInput('', false)
         await browser.close()
     })
 }
