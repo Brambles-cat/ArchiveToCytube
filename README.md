@@ -12,8 +12,5 @@ To use this, the variables in .env need to be configured first, and then in the 
 node index.js
 ```
 
-## Known Issues:
-1. Accepts invalid auth cookie input meaning that any video it will add will be added as temporary
-
 ## ToDo:
-1. Error handling for invalid auth cookie input
+1. If there's a disconnection because of a duplicate login, pause the execution and press enter to resume rather than having to rerun the script

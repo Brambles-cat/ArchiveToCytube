@@ -9,13 +9,23 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
     puppeteer.launch({ headless: headless}).then(async browser => {
         const page = await browser.newPage()
 
-        await page.setCookie(cookie)
-        await page.goto(url)
-        
         const archive_data = await get_archive_csv('https://docs.google.com/spreadsheets/d/1rEofPkliKppvttd8pEX8H6DtSljlfmQLdFR-SlyyX7E/export?format=csv')
 
-        // since a browser is being used, a delay is needeed so all the necessary elements have time to load
-        await delay(2500)
+        while (true) {
+            await page.setCookie(cookie)
+            await page.goto(url)
+
+            // since a browser is being used, a delay is needeed so all the necessary elements have time to load
+            await delay(2500)
+
+            // if the logout element exists that means that the authentication cookie has worked
+            if (await page.$('#logout')) break
+            
+            logErr("Invalid Authentication Cookie Provided")
+            log()
+
+            cookie['value'] = await getInput('Authentication Cookie: ', true)
+        }
 
         // This is the + button which is needed to reveal the playlist adding video options
         await page.click('#showmediaurl')
@@ -109,8 +119,6 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
             // but the default value is 1000 just to be safe
             await page.click('#queue_end')
             await delay(queue_delay + (!headless * 1000))
-
-
 
             log(`${csv_row}: not present - Title: ${videoData[index.TITLE]}\n${alternate ? 'adding using alt link...' : 'adding...'}\n`)
 

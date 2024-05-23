@@ -69,7 +69,6 @@ async function main() {
     cookie            = cookie,
     headless          = !flags['-show'],
     queue_delay       = flags['-queuedelay'],
-
     url               = channel_url,
     check_blacklisted = flags['-checkblacklisted']
   )
