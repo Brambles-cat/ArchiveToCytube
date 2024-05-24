@@ -37,7 +37,7 @@ function get_flags() {
   })
 
   for (var d_flag of delay) 
-    if (flags[d_flag] === undefined) flags[d_flag] = 1000
+    if (flags[d_flag] === undefined) flags[d_flag] = 2000
 
   return flags
 }

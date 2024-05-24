@@ -104,7 +104,7 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
                 await page.type('#mediaurl', videoData[index.ALT_LINK])
 
             } else {
-                if (skip_check) continue
+                if (skip_check(videoData)) continue
                 await page.type('#mediaurl', videoData[index.LINK]);
             }
 
@@ -113,10 +113,12 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
                 return
             }
 
-            // Cytube has a limit on how fast videos can be added so a
-            // delay was needed whether puppeteer was used or not
-            // I found that 600-1000 ms was enough of a delay to not face this issue
-            // but the default value is 1000 just to be safe
+            /* Cytube has a limit on how fast videos can be added so a
+             delay was needed whether puppeteer was used or not
+             I found that 600-1000 ms was enough of a delay to not face this issue
+             but the default value is 2000 just to be safe since sometimes queing
+             can take a bit longer before clearing the url entry box, which may cause errors
+            */
             await page.click('#queue_end')
             await delay(queue_delay + (!headless * 1000))
 
