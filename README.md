@@ -12,5 +12,22 @@ To use this, the variables in .env need to be configured first, and then in the 
 node index.js
 ```
 
+## Using The Script With Flags
+You can provide flags when running the script in the command line. Currently these are the available flags:
+
+- queuedelay\<int>
+  This flag sets the minimum delay (in milliseconds) between adding videos to the playlist. For example, -queue2000 adds a 2 second delay between adding each video
+- show
+  Makes the script run the web driver in non-headless mode; Lets you see how the script interacts with the Cytube page
+- errdelay\<int>
+  Sets the delay (in milliseconds) that the script pauses after encountering an error
+- checkblacklisted
+  Instructs the script to skip over videos from blacklisted channels and warns you if videos already in the playlist are marked as blacklisted in the archive
+
+### Example Usage
+```bash
+node index.js -show -queuedelay1500
+```
+
 ## ToDo:
 1. If there's a disconnection because of a duplicate login, pause the execution and press enter to resume rather than having to rerun the script
