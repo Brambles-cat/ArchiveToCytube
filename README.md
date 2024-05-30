@@ -7,7 +7,7 @@ Written in js because:
 
 Using this requires [Node.js](https://nodejs.org/en) and a list of dependencies is listed in [package.json](https://github.com/Brambles-cat/ArchiveToCytube/blob/main/package.json)
 
-To use this, the variables in .env need to be configured first, and then in the command prompt, navigate to the same directory as index.js and run
+To use this, the variables in .env need to be configured first. Then in the command prompt, navigate to the same directory as index.js and run
 ```bash
 node index.js
 ```
