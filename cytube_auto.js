@@ -15,13 +15,23 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
             await page.setCookie(cookie)
             await page.goto(url)
 
-            // since a browser is being used, a delay is needeed so all the necessary elements have time to load
-            await delay(2500)
+            // since a browser is being used, a delay might be needeed so all the necessary elements have time to load
+            await delay(2500 + (!headless * 1000))
 
             // if the logout element exists that means that the authentication cookie has worked
-            if (await page.$('#logout')) break
+            let logged_in = await page.$('#logout')
+            let retries = 0
             
-            logErr("Invalid Authentication Cookie Provided")
+            while (!logged_in && retries < 3) {
+                logErr("Indicator of successful login is absent\nRetrying...")
+                logged_in = await page.$('#logout')
+                await delay(1000)
+                if (logged_in) break
+            }
+
+            if (logged_in) break
+            
+            logErr("\nConclusion: Invalid Authentication Cookie Provided")
             log()
 
             cookie['value'] = await getInput('Authentication Cookie: ', true)
