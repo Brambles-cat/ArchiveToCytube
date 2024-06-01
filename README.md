@@ -31,3 +31,5 @@ node index.js -show -queuedelay1500
 
 ## ToDo:
 1. If there's a disconnection because of a duplicate login, pause the execution and press enter to resume rather than having to rerun the script
+2. Replace delaying with more reliable puppeteer functions that wait until elements are visible to use them
+3. Notify user to update auth token if the `Add as temporary` checkbox is disabled
