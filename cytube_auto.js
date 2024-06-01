@@ -22,7 +22,7 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
             let logged_in = await page.$('#logout')
             let retries = 0
             
-            while (!logged_in && retries < 3) {
+            while (!logged_in && retries++ < 3) {
                 logErr("Indicator of successful login is absent\nRetrying...")
                 logged_in = await page.$('#logout')
                 await delay(1000)
