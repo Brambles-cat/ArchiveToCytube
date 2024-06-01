@@ -7,10 +7,12 @@ Written in js because:
 
 Using this requires [Node.js](https://nodejs.org/en) and a list of dependencies is listed in [package.json](https://github.com/Brambles-cat/ArchiveToCytube/blob/main/package.json)
 
-To use this, the variables in .env need to be configured first. Then in the command prompt, navigate to the same directory as index.js and run
+## Usage
+Firstly, the variables in .env need to be configured. Then in the command prompt, navigate to the same directory as index.js and run
 ```bash
 node index.js
 ```
+A prompt will then appear for an authentication cookie, which is needed to log in with the necessary permissions to add videos to the playlist. The cookie can be found by logging into Cytube, inspecting the page >> Application >> Cookies (left sidebar) >> and copying the value in the `auth` row. The cookie does change every so often so if the `Add as temporary` checkbox is greyed out, it means that the auth value being used is outdated
 
 ## Using The Script With Flags
 You can provide flags when running the script in the command line. Currently these are the available flags:
