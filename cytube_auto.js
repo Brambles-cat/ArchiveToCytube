@@ -5,37 +5,17 @@ const { csv_map: index, blacklist_check, vid_identifier, get_archive_csv, log, l
 
 puppeteer.use(StealthPlugin())
 
-function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) {
+function update_playlist(use_cookie, headless, queue_delay, url, check_blacklisted) {    
     puppeteer.launch({ headless: headless}).then(async browser => {
         const page = await browser.newPage()
 
-        const archive_data = await get_archive_csv('https://docs.google.com/spreadsheets/d/1rEofPkliKppvttd8pEX8H6DtSljlfmQLdFR-SlyyX7E/export?format=csv')
+        if (use_cookie)
+            await login_with_cookie(page, url)
+        else
+            await normal_login(page, url)
 
-        while (true) {
-            await page.setCookie(cookie)
-            await page.goto(url)
-
-            // since a browser is being used, a delay might be needeed so all the necessary elements have time to load
-            await delay(2500 + (!headless * 1000))
-
-            // if the logout element exists that means that the authentication cookie has worked
-            let logged_in = await page.$('#logout')
-            let retries = 0
-            
-            while (!logged_in && retries++ < 3) {
-                logErr("Indicator of successful login is absent\nRetrying...")
-                logged_in = await page.$('#logout')
-                await delay(1000)
-                if (logged_in) break
-            }
-
-            if (logged_in) break
-            
-            logErr("\nConclusion: Invalid Authentication Cookie Provided")
-            log()
-
-            cookie['value'] = await getInput('Authentication Cookie: ', true)
-        }
+        // Give the page a bit to load the playlist with all the videos
+        await delay(2000)
 
         // This is the + button which is needed to reveal the playlist adding video options
         await page.click('#showmediaurl')
@@ -74,6 +54,8 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
             }
             return false
         }
+
+        const archive_data = await get_archive_csv('https://docs.google.com/spreadsheets/d/1rEofPkliKppvttd8pEX8H6DtSljlfmQLdFR-SlyyX7E/export?format=csv')
 
         // for each video in the archive, try adding it to
         // the cytube playlist if it isn't already present
@@ -177,6 +159,41 @@ function update_playlist(cookie, headless, queue_delay, url, check_blacklisted) 
         if (!headless) await getInput('', false)
         await browser.close()
     })
+}
+
+async function login_with_cookie(page) {
+    let input = await getInput('Authentication Cookie: ', true)
+
+    let cookie =  {
+        'name': 'auth',
+        'value': input,
+        'domain': '.cytu.be'
+    }
+
+    while (true) {
+        await page.setCookie(cookie)
+        await page.goto(url)
+
+        // if the logout element exists that means that the authentication cookie has worked
+        let logged_in = await page.$('#logout')
+
+        if (logged_in) break
+        
+        logErr("Invalid Authentication Cookie Provided")
+        log()
+
+        cookie.value = await getInput('Authentication Cookie: ', true)
+    }
+}
+
+async function normal_login(page, url) {
+    await page.goto("https://cytu.be/login")
+
+    // Wait until logged in, then go to the cytube channel
+    while (!(await page.$("div.alert.alert-success.messagebox.center")))
+        await delay(1000)
+
+    await page.goto(url)
 }
 
 module.exports = { update_playlist }
