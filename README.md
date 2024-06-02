@@ -12,26 +12,9 @@ Firstly, the variables in .env need to be configured. Then in the command prompt
 ```bash
 node index.js
 ```
-A prompt will then appear for an authentication cookie, which is needed to log in with the necessary permissions to add videos to the playlist. The cookie can be found by logging into Cytube, inspecting the page >> Application >> Cookies (left sidebar) >> and copying the value in the `auth` row. The cookie does change every so often so if the `Add as temporary` checkbox is greyed out, it means that the auth value being used is outdated
 
-## Using The Script With Flags
-You can provide flags when running the script in the command line. Currently these are the available flags:
-
-- queuedelay\<int>
-  This flag sets the minimum delay (in milliseconds) between adding videos to the playlist. For example, -queue2000 adds a 2 second delay between adding each video
-- show
-  Makes the script run the web driver in non-headless mode; Lets you see how the script interacts with the Cytube page
-- errdelay\<int>
-  Sets the delay (in milliseconds) that the script pauses after encountering an error
-- checkblacklisted
-  Instructs the script to skip over videos from blacklisted channels and warns you if videos already in the playlist are marked as blacklisted in the archive
-
-### Example Usage
-```bash
-node index.js -show -queuedelay1500
-```
+Depending on which login method is set in .env, either a prompt for an authentication cookie will appear, or the Cytube login page will be brought up. In the case of the former, the cookie can be found by logging into Cytube, inspecting the page >> Application >> Cookies (left sidebar) >> and copying the value in the `auth` row. The cookie does change every so often so if the `Add as temporary` checkbox is greyed out, it means that the auth value being used is outdated
 
 ## ToDo:
 1. If there's a disconnection because of a duplicate login, pause the execution and press enter to resume rather than having to rerun the script
-2. Replace delaying with more reliable puppeteer functions that wait until elements are visible to use them
-3. Notify user to update auth token if the `Add as temporary` checkbox is disabled
+2. Notify user to update auth token if the `Add as temporary` checkbox is disabled
