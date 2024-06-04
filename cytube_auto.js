@@ -1,103 +1,143 @@
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 
-const { csv_map: index, blacklist_check, vid_identifier, get_archive_csv, log, logErr, delay, getInput } = require('./utils.js')
+const { csv_map: index, blacklisted_creator, get_row_video_ids, check_includes, get_archive_csv, log, logErr, delay, getInput } = require('./utils.js')
 
 puppeteer.use(StealthPlugin())
 
-function update_playlist(use_cookie, headless, queue_delay, url, check_blacklisted) {    
+function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_blacklisted) {
     puppeteer.launch({ headless: headless}).then(async browser => {
         const page = await browser.newPage()
-
         if (use_cookie)
-            await login_with_cookie(page, url)
+            await login_with_cookie(page, playlist_url)
         else
-            await normal_login(page, url)
+            await normal_login(page, playlist_url)
 
         // Give the page a bit to load the playlist with all the videos
-        await delay(2000)
+        await delay(3000)
 
-        // This is the + button which is needed to reveal the playlist adding video options
-        await page.click('#showmediaurl')
+        let can_add = true
+        try {
+            // This is the + button which is needed to reveal the playlist adding video options
+            await page.click('#showmediaurl')
 
-        // this is to uncheck the 'add as temporary' box
-        await page.waitForSelector("#addfromurl .checkbox .add-temp").then(button => button.click());
+            // this is to uncheck the 'add as temporary' box
+            await page.waitForSelector("#addfromurl .checkbox .add-temp").then(button => button.click());
+        } catch {
+            await logErr("Can't add videos to this playlist")
+            can_add = false
+        }
 
         // return a 2d array of all video identifiers currently in the playlist
         let playlistSnapshot = await page.evaluate(() => {
             const elements = Array.from(document.getElementsByClassName('qe_title'));
+            let id, ids_links = {}
             elements.shift()
-            return elements.map(e => {
+
             // can't use vid_identifier() here since this runs in the page context
-            str = e.href.split('/')
-            if (!str.at(-1)) {
-                return str.at(-2) + "/"
+
+            for (var e of elements) {
+                id = e.href.split('/')
+
+                if (!id.at(-1)) {
+                    id = id.at(-2) + "/"
+                }
+
+                id = id.at(-1)
+                ids_links[id] = e.href
             }
-            return str.at(-1)
-            });
+           
+            return ids_links
         })
         
-        let is_blacklisted
+        let row_is_blacklisted
         let csv_row = 1, add_vid_attempts = 0
-        let alternate = false
+        let row_video_ids
+        let includes
         const blacklist_included = []
-
-        function skip_check(video_data) {
-            if (is_blacklisted) {
-                log(`${csv_row}: skipping blacklisted video`)
-                return true
-            }
-
-             if (videoData[index.NOTES].includes("age restriction")) {
-                log(`${csv_row}: skipping age restricted video`)
-                return true
-            }
-            return false
-        }
 
         const archive_data = await get_archive_csv('https://docs.google.com/spreadsheets/d/1rEofPkliKppvttd8pEX8H6DtSljlfmQLdFR-SlyyX7E/export?format=csv')
 
         // for each video in the archive, try adding it to
         // the cytube playlist if it isn't already present
-        for (var videoData of archive_data) {
+        for (var archive_row of archive_data) {
             ++csv_row
-            is_blacklisted = check_blacklisted && blacklist_check(videoData)
+            row_is_blacklisted = check_blacklisted && blacklisted_creator(archive_row)
+            row_video_ids = await get_row_video_ids(archive_row)
 
-            if (playlistSnapshot.includes(await vid_identifier(videoData[index.LINK]))) {
-                if (is_blacklisted) {
-                    await logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
-                    blacklist_included.push(`${videoData[index.TITLE]}  -  ${videoData[index.LINK]}`)
+            if (row_is_blacklisted) {
+                var present_url
+
+                for (const id of row_video_ids) {
+                    includes = check_includes(playlistSnapshot, id)
+
+                    if (includes.in_snapshot) {
+                        present_url = playlistSnapshot[includes.id]
+                        delete playlistSnapshot[includes.id]
+                        break
+                    }
                 }
-                else log(`${csv_row}: present`)
+
+                if (present_url) {
+                    await logErr(`${csv_row}: blacklisted video found in playlist - ${archive_row[index.TITLE]}`)
+                    blacklist_included.push(`${archive_row[index.TITLE]}  -  ${present_url}`)
+                    continue
+                }
+
+                log(`${csv_row}: skipping blacklisted video`)
                 continue
             }
 
-            // video having a non null state means that the first link shouldn't work
-            if (videoData[index.STATE]) {
-                if (videoData[index.FOUND] !== "found") {
-                    if (skip_check) continue
+            if (archive_row[index.NOTES].includes("age restriction bypass") || archive_row[index.NOTES].includes("bypass age restriction")) {
+                includes = check_includes(playlistSnapshot, row_video_ids[2])
 
-                    await logErr(csv_row + ': no useable alt link - Title: ' + videoData[index.TITLE])
+                if (includes.in_snapshot) {
+                    delete playlistSnapshot[includes.id]
+                    log(`${csv_row}: age-restriction bypassing link present`)
                     continue
                 }
 
-                if (playlistSnapshot.includes(await vid_identifier(videoData[index.ALT_LINK]))) {
-                    if (is_blacklisted) {
-                        await logErr(`${csv_row}: blacklisted video found in playlist - ${videoData[index.TITLE]}`)
-                        blacklist_included.push(`${videoData[index.TITLE]}  -  ${videoData[index.ALT_LINK]}`)
-                    }
-                    else log(`${csv_row}: alt present`)
+                log(`${csv_row}: not present - Title: ${archive_row[index.TITLE]}`)
+                if (can_add) {
+                    log("adding using age-restriction bypassing link...\n")
+                    await page.type('#mediaurl', archive_row[index.NOTES].split(" ").at(-1))
+                }
+            }
+
+            else if (archive_row[index.FOUND] === "found") {
+                includes = check_includes(playlistSnapshot, row_video_ids[1])
+
+                if (includes.in_snapshot) {
+                    log(`${csv_row}: alt present`)
+                    delete playlistSnapshot[includes.id]
                     continue
                 }
 
-                if (skip_check(videoData)) continue
+                log(`${csv_row}: not present - Title: ${archive_row[index.TITLE]}`)
+                if (can_add) {
+                    log("adding using alt link...\n")
+                    await page.type('#mediaurl', archive_row[index.ALT_LINK])
+                }
+            }
+            
+            else if (archive_row[index.FOUND] === "needed") {
+                await logErr(`${csv_row}: no useable alt link - Title: ${archive_row[index.TITLE]}`)
+                continue
+            }
 
-                alternate = true
-                await page.type('#mediaurl', videoData[index.ALT_LINK])
+            else {
+                includes = check_includes(playlistSnapshot, row_video_ids[0])
+                if (includes.in_snapshot) {
+                    log(`${csv_row}: present`)
+                    delete playlistSnapshot[includes.id]
+                    continue
+                }
 
-            } else {
-                if (skip_check(videoData)) continue
-                await page.type('#mediaurl', videoData[index.LINK]);
+                log(`${csv_row}: not present - Title: ${archive_row[index.TITLE]}`)
+                if (can_add) {
+                    log("adding...\n")
+                    await page.type('#mediaurl', archive_row[index.LINK])
+                }
             }
 
             if (await page.$('.server-msg-disconnect')) {
@@ -111,13 +151,12 @@ function update_playlist(use_cookie, headless, queue_delay, url, check_blacklist
              but the default value is 2000 just to be safe since sometimes queing
              can take a bit longer before clearing the url entry box, which may cause errors
             */
-            await page.click('#queue_end')
-            await delay(queue_delay + (!headless * 1000))
+            if (can_add) {
+                await page.click('#queue_end')
+                await delay(queue_delay + (!headless * 1000))
 
-            log(`${csv_row}: not present - Title: ${videoData[index.TITLE]}\n${alternate ? 'adding using alt link...' : 'adding...'}\n`)
-
-            ++add_vid_attempts
-            alternate = false;
+                ++add_vid_attempts
+            }
         }
 
         log('done')
@@ -156,6 +195,13 @@ function update_playlist(use_cookie, headless, queue_delay, url, check_blacklist
             log()
         }
 
+        if (Object.keys(playlistSnapshot).length !== 0) {
+            log("Videos found in Cytube playlist that shouldn't be according to the pony archive")
+            for (var url of Object.values(playlistSnapshot))
+                logErr(url, false)
+            log()
+        }
+
         if (!headless) await getInput('', false)
         await browser.close()
     })
@@ -163,7 +209,6 @@ function update_playlist(use_cookie, headless, queue_delay, url, check_blacklist
 
 async function login_with_cookie(page) {
     let input = await getInput('Authentication Cookie: ', true)
-
     let cookie =  {
         'name': 'auth',
         'value': input,
@@ -187,11 +232,17 @@ async function login_with_cookie(page) {
 }
 
 async function normal_login(page, url) {
+    let logged_in
     await page.goto("https://cytu.be/login")
 
     // Wait until logged in, then go to the cytube channel
-    while (!(await page.$("div.alert.alert-success.messagebox.center")))
-        await delay(1000)
+    while (!logged_in) {
+        await delay(750)
+        try {
+            logged_in = await page.$("div.alert.alert-success.messagebox.center")
+        }
+        catch {}
+    }
 
     await page.goto(url)
 }

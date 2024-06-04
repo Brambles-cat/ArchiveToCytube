@@ -71,11 +71,19 @@ function get_archive_csv(url, maxRedirects = 3) {
 // luckily the value differes between youtube, ponytube, and
 // bilibili as far as I can tell
 async function vid_identifier(url) {
+    let ponytube_url
+
     if (url.startsWith("https://pony.tube")) {
-        url = await get_ponytube_id(url)
+        ponytube_url = await get_ponytube_true_url(url)
     }
 
-    url = url.split('/')
+    url = url.split("/")
+    if (ponytube_url) {
+        ponytube_url = ponytube_url.split("/")
+        return ponytube_url.at(-1) === url.at(-1) ? url.at(-1) : [ponytube_url.at(-1), url.at(-1)]
+    }
+
+    // bilibili only so far
     if (!url.at(-1)) {
         return url.at(-2) + "/"
     }
@@ -83,8 +91,8 @@ async function vid_identifier(url) {
     return url.at(-1)
 }
 
-function blacklist_check(video_data) {
-    return video_data[csv_map.CHANNEL].startsWith('[BLACKLIST]')
+function blacklisted_creator(archive_row) {
+    return archive_row[csv_map.CHANNEL].startsWith('[BLACKLIST]')
 }
 
 // This is for the coolooorrrs
@@ -109,7 +117,7 @@ async function getInput(prompt, is_sensitive) {
     })
 }
 
-function get_ponytube_id(url) {
+function get_ponytube_true_url(url) {
     return new Promise((resolve, reject) => {
         https.get(url, (response) => {
             var data = "";
@@ -131,14 +139,45 @@ function get_ponytube_id(url) {
     })
 }
 
+async function get_row_video_ids(archive_row) {
+    const split_notes = archive_row[csv_map.NOTES].split(" ")
+    const notes_url = split_notes.at(-1).includes("://") ? split_notes.at(-1) : null
+    const ret = [archive_row[csv_map.LINK], archive_row[csv_map.ALT_LINK]]
+
+    if (notes_url)
+        ret.push(notes_url)
+
+    return Promise.all(ret.map(async url => await vid_identifier(url)))
+}
+
+function check_includes(playlist_snapshot, video_id) {
+    const ret = {id: 0, in_snapshot: true}
+    if (typeof video_id === "string") {
+        ret.id = video_id
+        ret.in_snapshot = video_id in playlist_snapshot
+        return ret
+    }
+    // Ponytube video with two ids
+    else if (video_id[0] in playlist_snapshot) {
+        ret.id = video_id[0]
+    }
+    else {
+        ret.id = video_id[1]
+        ret.in_snapshot = video_id[1] in playlist_snapshot
+    }
+
+    return ret
+}
+
 module.exports = {
     getInput,
     csv_map,
     get_archive_csv,
-    vid_identifier,
+    check_includes,
     log,
     logErr,
     delay,
-    blacklist_check,
+    blacklisted_creator,
+    get_row_video_ids,
     setErrDelay
 }
