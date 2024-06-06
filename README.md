@@ -18,3 +18,4 @@ Depending on which login method is set in .env, either a prompt for an authentic
 ## ToDo:
 1. If there's a disconnection because of a duplicate login, pause the execution and press enter to resume rather than having to rerun the script
 2. Notify user to update auth token if the `Add as temporary` checkbox is disabled
+3. Implement a way to use normal login credentials with headless mode on
