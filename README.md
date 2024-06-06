@@ -8,7 +8,7 @@ Written in js because:
 Using this requires [Node.js](https://nodejs.org/en) and a list of dependencies is listed in [package.json](https://github.com/Brambles-cat/ArchiveToCytube/blob/main/package.json)
 
 ## Usage
-Firstly, the variables in .env need to be configured. Then in the command prompt, navigate to the same directory as index.js and run
+Firstly, the `CHANNEL` variable in .env must be set to the name of the Cytube channel the program should run using. Several settings in this file can also be modified to change how the program behaves. Then in the command prompt, navigate to the same directory as index.js and run
 ```bash
 node index.js
 ```
