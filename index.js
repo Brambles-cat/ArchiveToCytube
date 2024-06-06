@@ -20,7 +20,7 @@ function int(v) {
   const ret = parseInt(v)
 
   if (isNaN(ret))
-    throw new Error(`\"${v}\" used for integer variable. Expected a number`)
+    throw new Error(`\"${v}\" given instead of an integer. Expected a number`)
 
   return parseInt(v)
 }
@@ -39,18 +39,34 @@ async function main() {
     error_delay = int(process.env.ERROR_DELAY)
 
   const
-    show              = get(process.env.SHOW),
-    blacklist_check   = get(process.env.CHECK_BLACKLISTED),
-    use_auth_cookie   = get(process.env.USE_AUTH_COOKIE)
+    show                  = get(process.env.SHOW),
+    blacklist_check       = get(process.env.CHECK_BLACKLISTED),
+    use_auth_cookie       = get(process.env.USE_AUTH_COOKIE),
+    report_contradictions = get(process.env.REPORT_CONTRADICTORY_VIDEOS)
+
+  let add_if_missing_setting
+
+  switch (process.env.ADD_IF_MISSING.toLowerCase()) {
+    case "true":
+      add_if_missing_setting = 2
+      break
+    case "ask":
+      add_if_missing_setting = 1
+      break
+    default:
+      add_if_missing_setting = 0
+  }
 
   setErrDelay(error_delay)
 
   update_playlist(
-    use_cookie        = use_auth_cookie,
-    headless          = !show && !use_auth_cookie,
-    queue_delay       = q_delay,
-    url               = channel_url,
-    check_blacklisted = blacklist_check
+    use_cookie           = use_auth_cookie,
+    headless             = !show && !use_auth_cookie,
+    queue_delay          = q_delay,
+    url                  = channel_url,
+    check_blacklisted    = blacklist_check,
+    add_if_missing       = add_if_missing_setting,
+    report_contradictory = report_contradictions
   )
 }
 
