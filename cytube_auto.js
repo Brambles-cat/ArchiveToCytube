@@ -1,22 +1,27 @@
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 
-const { csv_map: index, blacklisted_creator, get_row_video_ids, check_includes, get_archive_csv, log, logErr, delay, getInput } = require('./utils.js')
+const { csv_map: index, blacklisted_creator, get_row_video_ids, get_archive_csv, log, logErr, delay, getInput } = require('./utils.js')
 
 puppeteer.use(StealthPlugin())
 
-function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_blacklisted) {
+let
+    has_edit_pemissions = true,
+    ask_before_adding = false
+
+function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_blacklisted, add_if_missing, report_contradictory) {
+    if (add_if_missing === 0)
+        has_edit_pemissions = false
+    else if (add_if_missing === 1)
+        ask_before_adding = true
+
     puppeteer.launch({ headless: headless}).then(async browser => {
         const page = await browser.newPage()
         if (use_cookie)
             await login_with_cookie(page, playlist_url)
         else
             await normal_login(page, playlist_url)
-
-        // Give the page a bit to load the playlist with all the videos
-        await delay(3000)
-
-        let can_add = true
+        
         try {
             // This is the + button which is needed to reveal the playlist adding video options
             await page.click('#showmediaurl')
@@ -25,36 +30,50 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             await page.waitForSelector("#addfromurl .checkbox .add-temp").then(button => button.click());
         } catch {
             await logErr("Can't add videos to this playlist")
-            can_add = false
+            has_edit_pemissions = false
         }
 
         // return a 2d array of all video identifiers currently in the playlist
-        let playlistSnapshot = await page.evaluate(() => {
-            const elements = Array.from(document.getElementsByClassName('qe_title'));
-            let id, ids_links = {}
-            elements.shift()
-
-            // can't use vid_identifier() here since this runs in the page context
-
-            for (var e of elements) {
-                id = e.href.split('/')
-
-                if (!id.at(-1)) {
-                    id = id.at(-2) + "/"
-                }
-
-                id = id.at(-1)
-                ids_links[id] = e.href
-            }
-           
-            return ids_links
-        })
+        let playlistSnapshot
         
-        let row_is_blacklisted
-        let csv_row = 1, add_vid_attempts = 0
-        let row_video_ids
-        let includes
-        const blacklist_included = []
+        do {
+            // Give the page a bit to load the playlist with all the videos
+            await delay(2000)
+            
+            playlistSnapshot = await page.evaluate(() => {
+                const elements = Array.from(document.getElementsByClassName('qe_title'));
+                let id, ids_links = {}
+                elements.shift()
+
+                // can't use vid_identifier() here since this runs in the page context
+
+                for (var e of elements) {
+                    id = e.href.split('/')
+
+                    if (!id.at(-1)) {
+                        id = id.at(-2) + "/"
+                    }
+
+                    id = id.at(-1)
+                    ids_links[id] = e.href
+                }
+            
+                return ids_links
+            })
+        } while (!Object.keys(playlistSnapshot).length)
+        
+        let
+            row_is_blacklisted,
+            csv_row = 1,
+            add_vid_attempts = 0,
+            row_video_ids,
+            included,
+            should_queue = true,
+            is_contradictory = false
+
+        const
+            blacklist_included = [],
+            contradictory_included = []
 
         const archive_data = await get_archive_csv('https://docs.google.com/spreadsheets/d/1rEofPkliKppvttd8pEX8H6DtSljlfmQLdFR-SlyyX7E/export?format=csv')
 
@@ -64,23 +83,13 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             ++csv_row
             row_is_blacklisted = check_blacklisted && blacklisted_creator(archive_row)
             row_video_ids = await get_row_video_ids(archive_row)
+            included = check_includes(playlistSnapshot, row_video_ids)
 
             if (row_is_blacklisted) {
-                var present_url
-
-                for (const id of row_video_ids) {
-                    includes = check_includes(playlistSnapshot, id)
-
-                    if (includes.in_snapshot) {
-                        present_url = playlistSnapshot[includes.id]
-                        delete playlistSnapshot[includes.id]
-                        break
-                    }
-                }
-
-                if (present_url) {
+                if (included.video_id) {
                     await logErr(`${csv_row}: blacklisted video found in playlist - ${archive_row[index.TITLE]}`)
-                    blacklist_included.push(`${archive_row[index.TITLE]}  -  ${present_url}`)
+                    blacklist_included.push(`${archive_row[index.TITLE]}  -  ${playlistSnapshot[included.video_id]}`)
+                    delete playlistSnapshot[included.video_id]
                     continue
                 }
 
@@ -88,57 +97,77 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
                 continue
             }
 
-            if (archive_row[index.NOTES].includes("age restriction bypass") || archive_row[index.NOTES].includes("bypass age restriction")) {
-                includes = check_includes(playlistSnapshot, row_video_ids[2])
+            if (included.video_id) {
+                switch (included.archive_index) {
+                    case index.LINK:
+                        if (!archive_row[index.STATE])
+                            log(`${csv_row}: present`)
+                        else
+                            is_contradictory = true
+                        break
 
-                if (includes.in_snapshot) {
-                    delete playlistSnapshot[includes.id]
-                    log(`${csv_row}: age-restriction bypassing link present`)
-                    continue
+                    case index.ALT_LINK:
+                        if (archive_row[index.FOUND] !== "needed")
+                            log(`${csv_row}: alt present`)
+                        else
+                            is_contradictory = true
+                        break
+
+                    default:
+                        log(`${csv_row}: age-restriction bypassing link present`)
                 }
 
-                log(`${csv_row}: not present - Title: ${archive_row[index.TITLE]}`)
-                if (can_add) {
+                if (is_contradictory && report_contradictory) {
+                    contradictory_included.push(
+                        `${playlistSnapshot[included.video_id]} - ${archive_row[index.TITLE]}`
+                    )
+
+                    is_contradictory = false
+                }
+                
+                delete playlistSnapshot[included.video_id]
+                continue
+            }
+
+            // Add the first available url
+
+            if (archive_row[index.NOTES].includes("age restriction")) {
+                log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
+
+                if (should_queue = can_add()) {
                     log("adding using age-restriction bypassing link...\n")
                     await page.type('#mediaurl', archive_row[index.NOTES].split(" ").at(-1))
                 }
             }
+            else if (!archive_row[index.STATE]) {
+                log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-            else if (archive_row[index.FOUND] === "found") {
-                includes = check_includes(playlistSnapshot, row_video_ids[1])
-
-                if (includes.in_snapshot) {
-                    log(`${csv_row}: alt present`)
-                    delete playlistSnapshot[includes.id]
-                    continue
-                }
-
-                log(`${csv_row}: not present - Title: ${archive_row[index.TITLE]}`)
-                if (can_add) {
-                    log("adding using alt link...\n")
-                    await page.type('#mediaurl', archive_row[index.ALT_LINK])
-                }
-            }
-            
-            else if (archive_row[index.FOUND] === "needed") {
-                await logErr(`${csv_row}: no useable alt link - Title: ${archive_row[index.TITLE]}`)
-                continue
-            }
-
-            else {
-                includes = check_includes(playlistSnapshot, row_video_ids[0])
-                if (includes.in_snapshot) {
-                    log(`${csv_row}: present`)
-                    delete playlistSnapshot[includes.id]
-                    continue
-                }
-
-                log(`${csv_row}: not present - Title: ${archive_row[index.TITLE]}`)
-                if (can_add) {
+                if (should_queue = can_add()) {
                     log("adding...\n")
                     await page.type('#mediaurl', archive_row[index.LINK])
                 }
             }
+            else if (archive_row[index.FOUND] === "found") {
+                log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
+
+                if (should_queue = can_add()) {
+                    log("adding using alt link...\n")
+                    await page.type('#mediaurl', archive_row[index.ALT_LINK])
+                }
+            }
+            else if (row_video_ids.length === 3) {
+                log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
+
+                if (should_queue = can_add()) {
+                    log("adding using link in notes...\n")
+                    await page.type('#mediaurl', archive_row[index.NOTES].split(" ").at(-1))
+                }
+            }
+            else {
+                await logErr(`${csv_row}: no useable links for: ${archive_row[index.TITLE]}`)
+                continue
+            }
+
 
             if (await page.$('.server-msg-disconnect')) {
                 logErr('Disconnected from server because of duplicate login')
@@ -151,7 +180,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
              but the default value is 2000 just to be safe since sometimes queing
              can take a bit longer before clearing the url entry box, which may cause errors
             */
-            if (can_add) {
+            if (should_queue) {
                 await page.click('#queue_end')
                 await delay(queue_delay + (!headless * 1000))
 
@@ -190,25 +219,35 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
 
         if (blacklist_included.length) {
             log("Blacklisted videos found in Cytube playlist")
-            for (let video_identifiers of blacklist_included)
+
+            for (const video_identifiers of blacklist_included)
                 logErr(video_identifiers, false)
             log()
         }
 
         if (Object.keys(playlistSnapshot).length !== 0) {
-            log("Videos found in Cytube playlist that shouldn't be according to the pony archive")
-            for (var url of Object.values(playlistSnapshot))
+            log("Videos found in Cytube playlist that are duplicates or aren't in the archive")
+
+            for (const url of Object.values(playlistSnapshot))
                 logErr(url, false)
             log()
         }
 
-        if (!headless) await getInput('', false)
+        if (contradictory_included.length) {
+            log("Videos found in playlist that shouldn't be according to archive labels")
+
+            for (const video_identifier of contradictory_included)
+                logErr(video_identifier, false)
+            log()
+        }
+
+        if (!headless) getInput('')
         await browser.close()
     })
 }
 
 async function login_with_cookie(page) {
-    let input = await getInput('Authentication Cookie: ', true)
+    let input = getInput('Authentication Cookie: ', true)
     let cookie =  {
         'name': 'auth',
         'value': input,
@@ -227,7 +266,7 @@ async function login_with_cookie(page) {
         logErr("Invalid Authentication Cookie Provided")
         log()
 
-        cookie.value = await getInput('Authentication Cookie: ', true)
+        cookie.value = getInput('Authentication Cookie: ', true)
     }
 }
 
@@ -245,6 +284,49 @@ async function normal_login(page, url) {
     }
 
     await page.goto(url)
+}
+
+
+id_indices = [index.LINK, index.ALT_LINK, index.NOTES]
+
+function check_includes(playlist_snapshot, video_ids) {
+    const ret = {archive_index: null, video_id: null}
+    let id, i = 0
+
+    for (;i < video_ids.length; ++i) {
+        id = video_ids[i]
+
+        if (typeof id === "string") {
+            if (id in playlist_snapshot) {
+                ret.video_id = id
+                break
+            }
+        }
+        // For Ponytube videos with two ids
+        else if (id[0] in playlist_snapshot) {
+            ret.video_id = id[0]
+            break
+        }
+        else if (id[1] in playlist_snapshot) {
+            ret.video_id = id[1]
+            break
+        }
+    }
+
+    if (ret.video_id !== null)
+        ret.archive_index = id_indices[i]
+
+    return ret    
+}
+
+function can_add() {
+    return (
+        has_edit_pemissions &&
+        (
+            !ask_before_adding ||
+            getInput("Add this video to the playlist? (y/n)\n").toLowerCase() === "y"
+        )
+    )
 }
 
 module.exports = { update_playlist }

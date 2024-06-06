@@ -80,7 +80,7 @@ async function vid_identifier(url) {
     url = url.split("/")
     if (ponytube_url) {
         ponytube_url = ponytube_url.split("/")
-        return ponytube_url.at(-1) === url.at(-1) ? url.at(-1) : [ponytube_url.at(-1), url.at(-1)]
+        return ponytube_url.at(-1) === url.at(-1) ? url.at(-1) : [url.at(-1), ponytube_url.at(-1)]
     }
 
     // bilibili only so far
@@ -111,7 +111,7 @@ const delay = ms => {
     return new Promise(res => setTimeout(res, ms))
 }
 
-async function getInput(prompt, is_sensitive) {
+function getInput(prompt, is_sensitive=false) {
     return readline.question(prompt, {
         hideEchoBack: is_sensitive
     })
@@ -150,30 +150,11 @@ async function get_row_video_ids(archive_row) {
     return Promise.all(ret.map(async url => await vid_identifier(url)))
 }
 
-function check_includes(playlist_snapshot, video_id) {
-    const ret = {id: 0, in_snapshot: true}
-    if (typeof video_id === "string") {
-        ret.id = video_id
-        ret.in_snapshot = video_id in playlist_snapshot
-        return ret
-    }
-    // Ponytube video with two ids
-    else if (video_id[0] in playlist_snapshot) {
-        ret.id = video_id[0]
-    }
-    else {
-        ret.id = video_id[1]
-        ret.in_snapshot = video_id[1] in playlist_snapshot
-    }
-
-    return ret
-}
 
 module.exports = {
     getInput,
     csv_map,
     get_archive_csv,
-    check_includes,
     log,
     logErr,
     delay,
