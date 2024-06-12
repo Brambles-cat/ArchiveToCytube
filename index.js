@@ -61,7 +61,7 @@ async function main() {
 
   update_playlist(
     use_cookie           = use_auth_cookie,
-    headless             = !show && !use_auth_cookie,
+    headless             = !show,
     queue_delay          = q_delay,
     url                  = channel_url,
     check_blacklisted    = blacklist_check,

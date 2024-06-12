@@ -20,7 +20,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
         if (use_cookie)
             await login_with_cookie(page, playlist_url)
         else
-            await normal_login(page, playlist_url)
+            await normal_login(page, playlist_url, headless)
         
         try {
             // This is the + button which is needed to reveal the playlist adding video options
@@ -270,17 +270,32 @@ async function login_with_cookie(page) {
     }
 }
 
-async function normal_login(page, url) {
-    let logged_in
+async function normal_login(page, url, headless) {
     await page.goto("https://cytu.be/login")
 
-    // Wait until logged in, then go to the cytube channel
-    while (!logged_in) {
-        await delay(750)
-        try {
-            logged_in = await page.$("div.alert.alert-success.messagebox.center")
+    if (headless) {
+        let u_name, pass
+
+        while (true) {
+            u_name = getInput("Username: ", true)
+            pass = getInput("Password: ", true)
+            await page.type("#mainpage #username", u_name)
+            await page.type("#mainpage #password", pass)
+
+            try {
+                await page.click("section#mainpage button.btn.btn-success.btn-block")
+                await page.waitForSelector("div.alert.alert-success.messagebox.center", { timeout: 2500 })
+                break
+            }
+            catch {}
+
+            logErr("Invalid username or password", false)
+            log()
         }
-        catch {}
+    }
+    else {
+        log("Please login through Cytube")
+        await page.waitForSelector("div.alert.alert-success.messagebox.center", { timeout: 0 })
     }
 
     await page.goto(url)
