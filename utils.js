@@ -1,7 +1,6 @@
 const https = require('https')
 const { parse } = require('csv-parse');
 const readline = require('readline-sync')
-const cheerio = require('cheerio')
 
 // just to access csv row values by name rather than by number
 const csv_map = Object.freeze({
@@ -71,17 +70,10 @@ function get_archive_csv(url, maxRedirects = 3) {
 // luckily the value differes between youtube, ponytube, and
 // bilibili as far as I can tell
 async function vid_identifier(url) {
-    let ponytube_url
-
-    if (url.startsWith("https://pony.tube")) {
-        ponytube_url = await get_ponytube_true_url(url)
-    }
+    if (url.startsWith("https://pony.tube"))
+        return await get_ponytube_ids(url)
 
     url = url.split("/")
-    if (ponytube_url) {
-        ponytube_url = ponytube_url.split("/")
-        return ponytube_url.at(-1) === url.at(-1) ? url.at(-1) : [url.at(-1), ponytube_url.at(-1)]
-    }
 
     // bilibili only so far
     if (!url.at(-1)) {
@@ -117,20 +109,23 @@ function getInput(prompt, is_sensitive=false) {
     })
 }
 
-function get_ponytube_true_url(url) {
+function get_ponytube_ids(url) {
+    let id = url.includes("pony.tube/videos/watch") ? url.split("/videos/watch/")[1] : url.split("/w/")[1]
+    id = id.split("/")[0]
+
     return new Promise((resolve, reject) => {
-        https.get(url, (response) => {
-            var data = "";
+        https.get(`https://pony.tube/api/v1/videos/${id}`, (response) => {
+            let data = ""
+
             response.on('data', (chunk) => {
                 data += chunk.toString();
             })
 
             response.on('end', () => {
-                const $ = cheerio.load(data)
-                const metaTag = $('meta[property="og:url"]')
-                const content = metaTag.attr('content')
-                resolve(content)
+                data = JSON.parse(data)
+                resolve([data.uuid, data.shortUUID])
             })
+           
 
             response.on('err', (error) => {
                 reject(error);
