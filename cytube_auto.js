@@ -6,12 +6,12 @@ const { csv_map: index, blacklisted_creator, get_row_video_ids, get_archive_csv,
 puppeteer.use(StealthPlugin())
 
 let
-    has_edit_pemissions = true,
+    has_edit_permissions = true,
     ask_before_adding = false
 
 function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_blacklisted, add_if_missing, report_contradictory) {
     if (add_if_missing === 0)
-        has_edit_pemissions = false
+        has_edit_permissions = false
     else if (add_if_missing === 1)
         ask_before_adding = true
 
@@ -22,15 +22,18 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
         else
             await normal_login(page, playlist_url, headless)
         
-        try {
-            // This is the + button which is needed to reveal the playlist adding video options
-            await page.click('#showmediaurl')
-
-            // this is to uncheck the 'add as temporary' box
-            await page.waitForSelector("#addfromurl .checkbox .add-temp").then(button => button.click());
-        } catch {
-            await logErr("Can't add videos to this playlist")
-            has_edit_pemissions = false
+        if (has_edit_permissions) {
+            try {
+                await delay(1000)
+                // This is the + button which is needed to reveal the playlist adding video options
+                await page.waitForSelector('#showmediaurl').then(button => button.click())
+                await delay(1000)
+                // this is to uncheck the 'add as temporary' box
+                await page.waitForSelector("#addfromurl .checkbox .add-temp").then(button => button.click())
+            } catch {
+                await logErr("Can't add videos to this playlist")
+                has_edit_permissions = false
+            }
         }
 
         // return a 2d array of all video identifiers currently in the playlist
@@ -47,7 +50,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
 
                 // can't use vid_identifier() here since this runs in the page context
 
-                for (var e of elements) {
+                for (const e of elements) {
                     id = e.href.split('/')
 
                     if (!id.at(-1)) {
@@ -79,7 +82,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
 
         // for each video in the archive, try adding it to
         // the cytube playlist if it isn't already present
-        for (var archive_row of archive_data) {
+        for (const archive_row of archive_data) {
             ++csv_row
             row_is_blacklisted = check_blacklisted && blacklisted_creator(archive_row)
             row_video_ids = await get_row_video_ids(archive_row)
@@ -118,9 +121,10 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
                 }
 
                 if (is_contradictory && report_contradictory) {
-                    contradictory_included.push(
-                        `${playlistSnapshot[included.video_id]} - ${archive_row[index.TITLE]}`
-                    )
+                    contradictory_included.push({
+                        href: playlistSnapshot[included.video_id],
+                        archive_row: archive_row,
+                    })
 
                     is_contradictory = false
                 }
@@ -134,7 +138,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             if (archive_row[index.NOTES].includes("age restriction")) {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add()) {
+                if (should_queue = can_add(ask_before_adding)) {
                     log("adding using age-restriction bypassing link...\n")
                     await page.type('#mediaurl', archive_row[index.NOTES].split(" ").at(-1))
                 }
@@ -142,7 +146,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             else if (!archive_row[index.STATE]) {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add()) {
+                if (should_queue = can_add(ask_before_adding)) {
                     log("adding...\n")
                     await page.type('#mediaurl', archive_row[index.LINK])
                 }
@@ -150,7 +154,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             else if (archive_row[index.FOUND] === "found") {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add()) {
+                if (should_queue = can_add(ask_before_adding)) {
                     log("adding using alt link...\n")
                     await page.type('#mediaurl', archive_row[index.ALT_LINK])
                 }
@@ -158,7 +162,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             else if (row_video_ids.length === 3) {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add()) {
+                if (should_queue = can_add(ask_before_adding)) {
                     log("adding using link in notes...\n")
                     await page.type('#mediaurl', archive_row[index.NOTES].split(" ").at(-1))
                 }
@@ -236,9 +240,73 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
         if (contradictory_included.length) {
             log("Videos found in playlist that shouldn't be according to archive labels")
 
-            for (const video_identifier of contradictory_included)
-                logErr(video_identifier, false)
+            for (const bad_video of contradictory_included)
+                logErr(`${bad_video.href} - ${bad_video.archive_row[index.TITLE]}`, false)
             log()
+
+            if (has_edit_permissions && (getInput("Resolve contradictory items? (y/n): ").toLowerCase() === "y")) {
+                
+                log("Finding positions of bad entries in the playlist...")
+
+                const class_ids = await page.$$eval(".queue_entry", (nodes, hrefs) => {
+                    nodes = [...nodes].slice(1)
+                    return nodes
+                        .filter(node => hrefs.includes(node.querySelector(".qe_title").href))
+                        .map(node => ({ node, href: node.querySelector(".qe_title").href }))
+                        .sort((a, b) =>
+                            hrefs.indexOf(a.href) -
+                            hrefs.indexOf(b.href)
+                        )
+                        .map(({ node }) => node.classList[1])
+
+                }, contradictory_included.map(e => e.href))
+
+                let url_to_add, archive_row, bad_video
+
+                for (let i = 0; i < contradictory_included.length; ++i) {
+                    bad_video = contradictory_included[i]
+                    archive_row = bad_video.archive_row
+
+                    log(`\n${
+                        bad_video.href} - ${bad_video.archive_row[index.TITLE]
+                    }\nState: ${
+                        archive_row[index.STATE]
+                    }\nAlt url: ${
+                        archive_row[index.FOUND]
+                    }\nUrl in notes: ${
+                        archive_row[index.NOTES].includes("://")
+                    }`)
+
+                    if (!archive_row[index.STATE])
+                        url_to_add = archive_row[index.LINK]
+                    else if (archive_row[index.FOUND] === "found")
+                        url_to_add = archive_row[index.ALT_LINK]
+                    else if (archive_row[index.NOTES].includes("://"))
+                        // precondition: all urls in notes are at the end
+                        url_to_add = archive_row[index.NOTES].split(" ").at(-1)
+                    else {
+                        logErr("No useable links found", false)
+                        continue
+                    }
+
+                    if (can_add(true, "Remove bad url and replace with an alternative?")) {
+                        if (await page.$('.server-msg-disconnect')) {
+                            logErr('Disconnected from server because of duplicate login')
+                            return
+                        }
+                        // btn.btn-xs.btn-default.qbtn-[tmp/delete]
+
+                        log("Removing bad entry...")
+                        await page.click(`.queue_entry.${class_ids[i]} .btn-group .qbtn-tmp`)
+                        await delay(1500)
+
+                        log("Adding replacement...")
+                        await page.type('#mediaurl', url_to_add)
+                        await page.click('#queue_end')
+                        await delay(queue_delay + (!headless * 1000))
+                    }
+                }
+            }
         }
 
         if (!headless) getInput('')
@@ -334,12 +402,12 @@ function check_includes(playlist_snapshot, video_ids) {
     return ret    
 }
 
-function can_add() {
+function can_add(ask=true, msg="Add this video to the playlist?") {
     return (
-        has_edit_pemissions &&
+        has_edit_permissions &&
         (
-            !ask_before_adding ||
-            getInput("Add this video to the playlist? (y/n)\n").toLowerCase() === "y"
+            !ask ||
+            getInput(`${msg} (y/n)\n`).toLowerCase() === "y"
         )
     )
 }
