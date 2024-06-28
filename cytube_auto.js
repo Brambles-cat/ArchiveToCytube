@@ -297,7 +297,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
                         // btn.btn-xs.btn-default.qbtn-[tmp/delete]
 
                         log("Removing bad entry...")
-                        await page.click(`.queue_entry.${class_ids[i]} .btn-group .qbtn-tmp`)
+                        await page.click(`.queue_entry.${class_ids[i]} .btn-group .qbtn-delete`)
                         await delay(1500)
 
                         log("Adding replacement...")
