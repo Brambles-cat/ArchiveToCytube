@@ -297,8 +297,8 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
                         // btn.btn-xs.btn-default.qbtn-[tmp/delete]
 
                         log("Removing bad entry...")
-                        await page.click(`.queue_entry.${class_ids[i]} .btn-group .qbtn-delete`)
-                        await delay(1500)
+                        await page.click(`.queue_entry.${class_ids[i]} .btn-group .qbtn-${headless ? 'delete' : 'tmp'}`)
+                        if (!headless) getInput('Marked as temporary. Manual deletion required, press enter to continue:\n')
 
                         log("Adding replacement...")
                         await page.type('#mediaurl', url_to_add)
