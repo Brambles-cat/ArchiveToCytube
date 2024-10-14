@@ -1,7 +1,7 @@
 const puppeteer = require('puppeteer-extra')
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 
-const { csv_map: index, blacklisted_creator, get_row_video_ids, get_archive_csv, log, logErr, delay, getInput } = require('./utils.js')
+const { csv_map: index, blacklisted_creator, get_row_links, get_archive_csv, log, logErr, delay, getInput, vid_identifier } = require('./utils.js')
 
 puppeteer.use(StealthPlugin())
 
@@ -24,7 +24,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
         
         if (has_edit_permissions) {
             try {
-                await delay(1000)
+                await delay(2000)
                 // This is the + button which is needed to reveal the playlist adding video options
                 await page.waitForSelector('#showmediaurl').then(button => button.click())
                 await delay(1000)
@@ -69,7 +69,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             row_is_blacklisted,
             csv_row = 1,
             add_vid_attempts = 0,
-            row_video_ids,
+            row_links,
             included,
             should_queue = true,
             is_contradictory = false
@@ -85,8 +85,8 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
         for (const archive_row of archive_data) {
             ++csv_row
             row_is_blacklisted = check_blacklisted && blacklisted_creator(archive_row)
-            row_video_ids = await get_row_video_ids(archive_row)
-            included = check_includes(playlistSnapshot, row_video_ids)
+            row_links = get_row_links(archive_row)
+            included = await check_includes(playlistSnapshot, row_links)
 
             if (row_is_blacklisted) {
                 if (included.video_id) {
@@ -138,7 +138,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             if (archive_row[index.NOTES].includes("age restriction")) {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add(ask_before_adding)) {
+                if (should_queue = can_update(ask_before_adding)) {
                     log("adding using age-restriction bypassing link...\n")
                     await page.type('#mediaurl', archive_row[index.NOTES].split(" ").at(-1))
                 }
@@ -146,7 +146,7 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             else if (!archive_row[index.STATE]) {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add(ask_before_adding)) {
+                if (should_queue = can_update(ask_before_adding)) {
                     log("adding...\n")
                     await page.type('#mediaurl', archive_row[index.LINK])
                 }
@@ -154,15 +154,15 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
             else if (archive_row[index.FOUND] === "found") {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add(ask_before_adding)) {
+                if (should_queue = can_update(ask_before_adding)) {
                     log("adding using alt link...\n")
                     await page.type('#mediaurl', archive_row[index.ALT_LINK])
                 }
             }
-            else if (row_video_ids.length === 3) {
+            else if (row_links.length === 3) {
                 log(`${csv_row}: not present - ${archive_row[index.TITLE]}`)
 
-                if (should_queue = can_add(ask_before_adding)) {
+                if (should_queue = can_update(ask_before_adding)) {
                     log("adding using link in notes...\n")
                     await page.type('#mediaurl', archive_row[index.NOTES].split(" ").at(-1))
                 }
@@ -282,14 +282,20 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
                     else if (archive_row[index.FOUND] === "found")
                         url_to_add = archive_row[index.ALT_LINK]
                     else if (archive_row[index.NOTES].includes("://"))
-                        // precondition: all urls in notes are at the end
+                        // precondition: all urls in notes are at the end of the cell
                         url_to_add = archive_row[index.NOTES].split(" ").at(-1)
                     else {
                         logErr("No useable links found", false)
+                        if (can_update(true, "Remove bad url only?")) {
+                            if (await page.$('.server-msg-disconnect')) {
+                                logErr('Disconnected from server because of duplicate login')
+                                return
+                            }
+                        }
                         continue
                     }
 
-                    if (can_add(true, "Remove bad url and replace with an alternative?")) {
+                    if (can_update(true, "Remove bad url and replace with an alternative?")) {
                         if (await page.$('.server-msg-disconnect')) {
                             logErr('Disconnected from server because of duplicate login')
                             return
@@ -372,12 +378,12 @@ async function normal_login(page, url, headless) {
 
 id_indices = [index.LINK, index.ALT_LINK, index.NOTES]
 
-function check_includes(playlist_snapshot, video_ids) {
+async function check_includes(playlist_snapshot, video_links) {
     const ret = {archive_index: null, video_id: null}
     let id, i = 0
 
-    for (;i < video_ids.length; ++i) {
-        id = video_ids[i]
+    for (;i < video_links.length; ++i) {
+        id = await vid_identifier(video_links[i])
 
         if (typeof id === "string") {
             if (id in playlist_snapshot) {
@@ -402,7 +408,7 @@ function check_includes(playlist_snapshot, video_ids) {
     return ret    
 }
 
-function can_add(ask=true, msg="Add this video to the playlist?") {
+function can_update(ask=true, msg="Add this video to the playlist?") {
     return (
         has_edit_permissions &&
         (

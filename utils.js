@@ -70,8 +70,11 @@ function get_archive_csv(url, maxRedirects = 3) {
 // luckily the value differes between youtube, ponytube, and
 // bilibili as far as I can tell
 async function vid_identifier(url) {
-    if (url.startsWith("https://pony.tube"))
+    if (url.startsWith("https://pony.tube")) {
+        // Those darn rate limits
+        await delay(100)
         return await get_ponytube_ids(url)
+    }
 
     url = url.split("/")
 
@@ -127,22 +130,22 @@ function get_ponytube_ids(url) {
             })
            
 
-            response.on('err', (error) => {
+            response.on('error', (error) => {
                 reject(error);
             })
         });
     })
 }
 
-async function get_row_video_ids(archive_row) {
+function get_row_links(archive_row) {
     const split_notes = archive_row[csv_map.NOTES].split(" ")
     const notes_url = split_notes.at(-1).includes("://") ? split_notes.at(-1) : null
-    const ret = [archive_row[csv_map.LINK], archive_row[csv_map.ALT_LINK]]
+    const links = [archive_row[csv_map.LINK], archive_row[csv_map.ALT_LINK]]
 
     if (notes_url)
-        ret.push(notes_url)
+        links.push(notes_url)
 
-    return Promise.all(ret.map(async url => await vid_identifier(url)))
+    return links
 }
 
 
@@ -154,6 +157,7 @@ module.exports = {
     logErr,
     delay,
     blacklisted_creator,
-    get_row_video_ids,
-    setErrDelay
+    get_row_links,
+    setErrDelay,
+    vid_identifier
 }

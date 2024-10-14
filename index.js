@@ -3,14 +3,14 @@ const { logErr, log, setErrDelay, blacklist_check } = require('./utils.js')
 require('dotenv').config()
 
 
-function get(v) {
-  if (v === undefined || v.toLowerCase() === "false")
+function get(variable) {
+  if (variable === undefined || variable.toLowerCase() === "false")
     return false
 
-  if (v.toLowerCase() === "true")
+  if (variable.toLowerCase() === "true")
     return true
 
-  throw new Error(`\"${v}\" used for boolean variable. Expected \"true\" or \"false\"`)
+  throw new Error(`\"${variable}\" used for boolean variable. Expected \"true\" or \"false\"`)
 }
 
 function int(v) {

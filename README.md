@@ -5,7 +5,10 @@ Written in js because:
 2. This project uses [Puppeteer](https://github.com/puppeteer/puppeteer) and a still functional [plugin](https://github.com/berstend/puppeteer-extra/tree/master/packages/puppeteer-extra-plugin-stealth) that enables automation without being stopped by Cloudflare
 3. The python [alternative](https://github.com/MeiK2333/pyppeteer_stealth) is pretty outdated and was transplanted by the Puppeteer plugin anyway
 
-Using this requires [Node.js](https://nodejs.org/en) and a list of dependencies is listed in [package.json](https://github.com/Brambles-cat/ArchiveToCytube/blob/main/package.json)
+Using this requires [Node.js](https://nodejs.org/en) and a list of dependencies is listed in [package.json](https://github.com/Brambles-cat/ArchiveToCytube/blob/main/package.json) which can be installed by running
+```bash
+npm i
+```
 
 ## Usage
 Firstly, the `CHANNEL` variable in .env must be set to the name of the Cytube channel the program should run using. Several settings in this file can also be modified to change how the program behaves. Then in the command prompt, navigate to the same directory as index.js and run
