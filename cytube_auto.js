@@ -302,9 +302,15 @@ function update_playlist(use_cookie, headless, queue_delay, playlist_url, check_
                         }
                         // btn.btn-xs.btn-default.qbtn-[tmp/delete]
 
-                        log("Removing bad entry...")
+                        log("Finding bad entry...")
                         await page.click(`.queue_entry.${class_ids[i]} .btn-group .qbtn-${headless ? 'delete' : 'tmp'}`)
-                        if (!headless) getInput('Marked as temporary. Manual deletion required, press enter to continue:\n')
+                        if (!headless) {
+                            if (getInput('Marked as temporary. Delete? (y/n)\n').toLowerCase() === "y") {
+                                await page.click(`.queue_entry.${class_ids[i]} .btn-group .qbtn-delete`)
+                                // Just to see
+                                await delay(1000)
+                            }
+                        }
 
                         log("Adding replacement...")
                         await page.type('#mediaurl', url_to_add)
